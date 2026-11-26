@@ -1,0 +1,7 @@
+{
+  "name": "openfilm-craft",
+  "private": true,
+  "bin": {
+    "duck": "bin/duck.mjs"
+  }
+}
