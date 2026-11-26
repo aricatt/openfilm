@@ -29,32 +29,42 @@
 
 ## 二、第一档详述
 
-### A. 声明式编辑操作层
+### A. 声明式编辑操作层 ✅ 已移植（craft edit，commit 1d19c76）
 
-**是什么**：把「剪辑」抽象为声明式操作（按片段、淡入淡出、台词、cue 修改），而非直接
-patch 文本。每次操作：写入前整体校验 → 说明改了什么 → 可逐条撤销（`--undo` 带变更
-检测）→ 操作日志。编辑以 `by: "author"` 语义写入，与 Studio 手动修改区分。
+**移植中发现的关键事实**：上游最新版已不是空白——`studio/server/ops.mjs` 有完整的
+操作式编辑体系（set/move/insert/remove/split/props/fields/track/reorder/captions/
+keyframes/stage），`editProjectFilm` 提供事务化写入（整体校验、冲突检测、三人合并），
+撤销有 Studio 侧 person-edits。**真正的空白只有两处**：agent 可用的 CLI 入口、以及
+headless 撤销日志。
 
-**ADu 参考**：`adudir-edit.mjs`（1268 行）、`adudir-film-writer`、`adudir-track-map`、
-`adudir-track-identity`、`adudir-edit-copy-guide`
+**移植结果**（零上游改动）：
+- `openfilm craft edit '<ops json>'`：craft 复合操作 trim/fade/attr/replace/shift/ripple
+  翻译为上游 ops；上游 ops 原样透传
+- 事务写入经上游 `editProjectFilm`（all-or-none）；rebase 时在新胶片上重新翻译（最多 3 次）
+- 自有撤销日志 `.film/craft-edit/`（快照 + jsonl），Studio 不在也能用；
+  `--undo` 检测胶片在编辑后被改动则拒绝（`--force` 强制）；`--log` 查看
+- 11/11 测试通过（含端到端：编辑→日志→undo 字节级还原、冲突拒绝、dry-run）
 
-**上游现状**：空白。上游 agent 直接读写 film.html 文本，插件 `edit` 仅有
-`add`/`look` 两个命令，无操作抽象、无撤销。
+**未移植的 ADu 操作**（依赖其他功能组，按需后补）：cue/music/revoice/box-keys/param/stage-ratio。
+ADu 的"单轨不重叠拒绝"未移植——上游语义允许重叠（转场），且 fitClipLengths 自行处理。
 
-**为什么是地基**：MCP 工具桥（D）的每个写操作都需要「记录原因 + 可撤销」语义；
-质量检测（B）修复问题也需要通过操作层写入。**最先或第二个移植**。
+### B. 成片质量检测 🔶 核心已移植（craft check，commit 21393ff）
 
-### B. 成片质量检测
+**移植中发现的关键事实**：上游 `look` 并非空白——它做逐帧故障检测（白闪、跳帧、
+静止帧、黑帧、文字裁切、单色画面、响度）。但那是**技术故障**检测，ADu 的是**剪辑
+语言**检测（节奏/运动质量），语义不同，互补不重叠。
 
-**是什么**：基于渲染结果（而非猜帧）的成片 QA：定格检测、缓慢漂移、单次运动过长、
-纯滚动过长、静止时间占比、「死句」（静止画面配长台词）等。
+**移植结果**（零上游改动）：
+- `openfilm craft check <video> [--footage] [--json]`：10fps 小灰帧测量
+- 四类检测：hold（定格，呼吸/晃动容差）、drift（缓慢漂移）、move（单次运动过长）、
+  scroll（纯滚动过长）；shift/zoom 解释性拟合、cut 切分、burst 计数全套算法重写
+- 9/9 测试通过（含编码器噪声标定：静态帧噪声 < STILL_STEP 阈值）
 
-**ADu 参考**：`adudir-film-checks.mjs`（1123 行）、`adudir-look-checks`、
-`adudir-preview-check`、`adudir-render-verify`
-
-**上游现状**：空白。上游 `look` 只出 contact sheet + 响度，无内容质量判断。
-
-**价值**：AI 生成视频的品控核心——agent 出片后自检，发现问题经操作层（A）修复。
+**未移植部分**（依赖外部能力，见决策点）：
+- 叠化/主色突变检测（算法最深，BLEND_* 十余个标定阈值）
+- 密字/字不停（需 Vision OCR）、数字核对（需 ASR 台词）
+- 死句检测（需字幕/台词时间轴，可接上游 captions）
+- 字幕条/主持人窗口遮罩（ADu 版式相关）与 look-exempt.json 豁免机制
 
 ### C. 音频闪避 ✅ 已移植（craft duck）
 
@@ -86,16 +96,20 @@ sealed/shot + captions-lines + locate 等约 15 个文件）
 
 **价值**：你们 LLM 自接——这正是 LLM 与引擎之间的工具层。**依赖 A（操作层）先行**。
 
-### E. 节拍 / 音乐适配 / 音效
+### E. 节拍 / 音乐适配 / 音效 🔶 节拍已移植（craft beats）
 
-**是什么**：BGM 节拍检测、按节拍点切镜头/踩点特效、音乐长度适配（自动裁剪/循环到
-成片长度）、页面音效。ADu 参考：`adudir-beats`（412 行）、`adudir-beat-fx`、
-`adudir-music-fit`、`adudir-page-sfx`。
+**移植结果**（零上游改动）：
+- `openfilm craft beats <audio> [--json] [--out]`：完整 DSP 管线重写——ffmpeg 解码
+  22.05kHz → 短时频谱（2048/hop 256，双实帧打包 FFT）→ 谱通量 onset（低频加权）→
+  加权自相关测速 + comb 精修 → 动态规划节拍跟踪（Ellis 2007）→ 攻击点对齐（含
+  反拍检测：底鼓在正拍）→ 强拍相位（底鼓+和声新颖度）→ 小节/段落/重音/进入点/循环点
+- 项目内音频旁写 `<name>.beats.json`（按文件哈希缓存），页面可 fetch 踩点动画
+- 5/5 测试通过：90/120 BPM 合成点击轨节拍误差 <40ms，强拍落在底鼓上，段落/重音正确
 
-**上游现状**：空白（无 beat 相关实现）。
-
-**注意**：`adudir-music-library`/`sfx-library` 曲库音效库是 ADu 的服务端数据资产，
-只移植能力不移植数据；素材源你们自备。
+**未移植部分**：
+- `music-fit`（音乐按故事点裁剪/拼接）：依赖 cue 概念，待 cue 体系决策后补
+- `beat-fx`（踩点特效模板）与 `page-sfx`（页面音效）：属于模板/页面层，缓议
+- 曲库/音效库是 ADu 服务端数据资产，不移植；素材源自备
 
 ### F. 字幕增强（择优增量）
 
@@ -116,15 +130,18 @@ sealed/shot + captions-lines + locate 等约 15 个文件）
 受约束动画系统。可能是编译到 CSS keyframes 的 authoring 层。**先验证上游 `split`
 + CSS 动画能否表达，能则此组价值大减。**
 
-### I. 变速斜坡 / retime / 定格
+### I. 变速斜坡 / retime / 定格 🔶 已解析，待决策
 
-**上游现状**：`speed` 仅静态 0.1–100，无时间重映射。
+**重要更正**（移植中深查发现）：ADu 的 `adudir-retime` 不是变速！它是**时间轴波纹
+重映射**——镜头加长/缩短后下游一切（字幕、cue、模板时间线）跟着移动的纯函数
+（retimeMoment/retimeCue）。**此能力已由 craft edit 的 shift/ripple 操作覆盖**。
 
-**ADu 增量**：`adudir-speed-ramp`（变速斜坡）、`adudir-retime`、
-`adudir-still-frame`（定格帧）、`adudir-source-clock/movie-clock`（时钟映射）。
-
-**移植成本**：变速需要渲染层支持——**核心补丁候选**，需先评估上游 render/host
-的时间采样架构。`still-frame`（抽一帧定格成图片clip）可纯插件实现。
+剩余两项的真实构成：
+- `speed-ramp`（曲线变速，84 行算法）：预设速度曲线（montage/hero/bullet/flash-in/out），
+  积分后得 film-time→source-time 映射。**算法小，但消费点在 fork 深度改造的
+  clipSpan/timeline 里**——上游等价物需要给渲染管线的逐帧 seek 打核心补丁，
+  补丁面比 duck 大得多。**决策点 3，见文末**。
+- `still-frame`（定格帧，39 行）：抽一帧成图片 clip，可纯插件实现，工作量小。
 
 ## 三、第二档（看产品定位再定）
 
