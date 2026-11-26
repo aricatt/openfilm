@@ -432,6 +432,13 @@ const START_LAG = 0.08;   // s: how long play() takes to get a video going
 /** Keep a playing video at `want` as the film plays at `rate`: its pace nudged when it drifts, sought when far off. */
 function roll(c, want, rate) {
   const v = c.el;
+  /* craft: a speed-curved clip's pace changes along it — no constant playbackRate follows it: frame by frame */
+  if (typeof c.row.attrs?.['data-craft-ramp'] === 'string') {
+    if (!v.paused) v.pause();
+    c.steer = 0; c.off = 0;
+    step(c, want);
+    return;
+  }
   const speed = (c.span.speed ?? 1) * rate;
   /* a clip × viewer rate the browser does not play (faster than 16×, slower than 1/16×): the film is followed by
      seeking, as when autoplay is refused */
@@ -1425,6 +1432,8 @@ function hear() {
       continue;
     }
     if (c.volume <= 0 || (c.kind !== 'sound' && c.kind !== 'video')) continue;
+    /* craft: a speed-curved clip is not heard — its sound would be stretched and squeezed unevenly */
+    if (typeof c.row.attrs?.['data-craft-ramp'] === 'string') continue;
     sounds.push({ clip: c.id, src: url(c.row.src).pathname, at: c.at, from: c.span.from, to: c.span.to, volume: c.volume, speed: c.span.speed,
       ...(c.fade ? { fade: c.fade } : {}),
       /* craft: what the clip declares of its sound's processing (data-craft-duck), carried to the mix */

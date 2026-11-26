@@ -130,18 +130,24 @@ sealed/shot + captions-lines + locate 等约 15 个文件）
 受约束动画系统。可能是编译到 CSS keyframes 的 authoring 层。**先验证上游 `split`
 + CSS 动画能否表达，能则此组价值大减。**
 
-### I. 变速斜坡 / retime / 定格 🔶 已解析，待决策
+### I. 变速斜坡 / retime / 定格 🔶 变速斜坡已移植（craft ramp）
 
 **重要更正**（移植中深查发现）：ADu 的 `adudir-retime` 不是变速！它是**时间轴波纹
 重映射**——镜头加长/缩短后下游一切（字幕、cue、模板时间线）跟着移动的纯函数
 （retimeMoment/retimeCue）。**此能力已由 craft edit 的 shift/ripple 操作覆盖**。
 
-剩余两项的真实构成：
-- `speed-ramp`（曲线变速，84 行算法）：预设速度曲线（montage/hero/bullet/flash-in/out），
-  积分后得 film-time→source-time 映射。**算法小，但消费点在 fork 深度改造的
-  clipSpan/timeline 里**——上游等价物需要给渲染管线的逐帧 seek 打核心补丁，
-  补丁面比 duck 大得多。**决策点 3，见文末**。
-- `still-frame`（定格帧，39 行）：抽一帧成图片 clip，可纯插件实现，工作量小。
+**变速斜坡移植结果**：
+- 注入点比预想干净得多：`film-doc.mjs` 的 `sourceAt` 是 film 时间→素材时间的唯一纯函数，
+  导出与精确预览都走它——一处补丁全接管
+- 三处核心补丁（均有 craft 标记，上游 film-doc/timeline 回归 90/90 无回归）：
+  1. `sourceAt`：曲线分支（预设名或 JSON 点列，积分归一化——恒定曲线恒等于线性）
+  2. `hear()`：变速 clip 静音（声音会不均匀拉伸，与 ADu 同决策）
+  3. `roll()`：变速 clip 预览不走 playbackRate 自播放，逐帧 seek
+- 插件侧：`src/ramp.mjs` 参考实现（5 预设 + 自定义点列）+ `craft ramp` 校验命令
+- 语义与 ADu 对齐：clip 长度不变、源区间完整消耗、只改变分布——trim/move/split/导出兼容
+- 已知限制：预览播放中变速 clip 逐帧 seek 可能不如自播放流畅（导出不受限）
+
+`still-frame`（定格帧，39 行）：抽一帧成图片 clip，可纯插件实现，工作量小，待做。
 
 ## 三、第二档（看产品定位再定）
 

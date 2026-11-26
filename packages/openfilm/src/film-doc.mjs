@@ -513,8 +513,63 @@ export function clipSpan(clip, native, where = 'clip') {
  * frame (`native` − 1 ms: the page's frame(t) takes t in [0, duration)).
  */
 export function sourceAt(span, localSec, clip, native) {
+  /* craft: a clip carrying data-craft-ramp shares its film time unevenly over the same source span (fast, then
+     slow, then fast): the span is consumed exactly (the curve is normalized), only its distribution changes.
+     The clip is as long on the film, so trims, moves, cuts beside it and exports keep their times. */
+  const ramp = clip?.attrs?.['data-craft-ramp'];
+  if (typeof ramp === 'string' && ramp.trim() && span.to > span.from && span.length > 0) {
+    const table = rampTableFor(ramp);
+    if (table) {
+      const u = Math.max(0, Math.min(1, localSec / span.length)) * (table.length - 1);
+      const i = Math.min(table.length - 2, Math.floor(u));
+      const share = table[i] * (1 - (u - i)) + table[i + 1] * (u - i);
+      return span.from + (span.to - span.from) * share;
+    }
+  }
   const t = span.from + localSec * span.speed;
   return kindOf(clip) === 'page' && isFinite(native) ? Math.max(0, Math.min(t, native - 1e-3)) : t;
+}
+
+/* craft: the speed curve's integral, normalized so the whole source share is consumed over the whole clip.
+   Compact on purpose (the plugin's src/ramp.mjs is the reference and documents the presets); keyed by the
+   declaration so each curve is integrated once. A preset's name or the points themselves ([[u, speed], …]). */
+const RAMP_PRESETS = {
+  montage: [[0, 3], [0.3, 0.45], [0.7, 0.45], [1, 3]],
+  hero: [[0, 1], [0.35, 1], [0.5, 0.18], [0.65, 1], [1, 1]],
+  bullet: [[0, 1.6], [0.3, 1.6], [0.4, 0.12], [0.7, 0.12], [0.8, 1.6], [1, 1.6]],
+  'flash-in': [[0, 4], [0.3, 4], [0.45, 1], [1, 1]],
+  'flash-out': [[0, 1], [0.55, 1], [0.7, 4], [1, 4]],
+};
+const rampTables = new Map();
+function rampTableFor(declaration) {
+  const key = declaration.trim();
+  if (rampTables.has(key)) return rampTables.get(key);
+  let points = RAMP_PRESETS[key];
+  if (!points) {
+    try {
+      const list = JSON.parse(key);
+      if (Array.isArray(list) && list.length >= 2 && list[0][0] === 0 && list[list.length - 1][0] === 1
+          && list.every((p) => Array.isArray(p) && p.length === 2 && p.every((v) => typeof v === 'number' && isFinite(v)) && p[1] > 0)) points = list;
+    } catch { /* not json */ }
+  }
+  if (!points) { rampTables.set(key, null); return null; }
+  const speed = (u) => {
+    for (let i = 1; i < points.length; i++) {
+      const [u0, s0] = points[i - 1], [u1, s1] = points[i];
+      if (u <= u1) return u1 > u0 ? s0 + ((s1 - s0) * (u - u0)) / (u1 - u0) : s1;
+    }
+    return points[points.length - 1][1];
+  };
+  const steps = 512, table = new Float64Array(steps + 1);
+  let acc = 0;
+  for (let i = 1; i <= steps; i++) {
+    acc += (speed((i - 1) / steps) + speed(i / steps)) / 2 / steps;
+    table[i] = acc;
+  }
+  const total = table[steps] || 1;
+  for (let i = 0; i <= steps; i++) table[i] /= total;
+  rampTables.set(key, table);
+  return table;
 }
 
 /* ── fades ───────────────────────────────────────────────────────────────── */

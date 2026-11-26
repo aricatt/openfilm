@@ -5,6 +5,7 @@
     "duck": "bin/duck.mjs",
     "edit": "bin/edit.mjs",
     "check": "bin/check.mjs",
-    "beats": "bin/beats.mjs"
+    "beats": "bin/beats.mjs",
+    "ramp": "bin/ramp.mjs"
   }
 }

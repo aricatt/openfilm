@@ -59,4 +59,18 @@ itself; `--json` for reading in a tool.
 come in — and writes `song.beats.json` beside it (once, again when the file changes). Cut on downbeats, animate
 on beats: a page fetches the JSON and moves with the music.
 
+## Speed curves: fast, then slow, then fast
+
+A video clip's film time shared out unevenly over the same part of its file — declared on the clip:
+
+```html
+<video id="v1" src="shot.mp4#t=0,8" data-craft-ramp="hero"></video>
+```
+
+Presets: `montage` (fast in, slow middle, fast out), `hero` (a slow-downed peak), `bullet` (a held slow stretch),
+`flash-in` / `flash-out` — or the points themselves: `'[[0,1],[0.5,0.18],[1,1]]'` (u the share along the clip,
+speed relative, mean normalized to 1). The clip stays as long on the film and shows the same source span, so
+trims, moves and cuts keep their times. A curved clip is not heard: its sound would stretch unevenly. Write or
+change one with craft edit's `attr` operation, then `openfilm craft ramp` checks every declaration reads.
+
 (More as they are ported: see PORTING.md at the repository root.)
