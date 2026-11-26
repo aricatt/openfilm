@@ -1426,7 +1426,9 @@ function hear() {
     }
     if (c.volume <= 0 || (c.kind !== 'sound' && c.kind !== 'video')) continue;
     sounds.push({ clip: c.id, src: url(c.row.src).pathname, at: c.at, from: c.span.from, to: c.span.to, volume: c.volume, speed: c.span.speed,
-      ...(c.fade ? { fade: c.fade } : {}) });
+      ...(c.fade ? { fade: c.fade } : {}),
+      /* craft: what the clip declares of its sound's processing (data-craft-duck), carried to the mix */
+      ...(c.row.attrs ? { attrs: c.row.attrs } : {}) });
   }
 }
 

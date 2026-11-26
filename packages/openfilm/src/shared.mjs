@@ -251,7 +251,9 @@ function soundSources(root, entry, clips, from) {
     if (at < 0) { start -= at * speed; at = 0; }
     const fade = Array.isArray(c.fade) && c.to != null && (c.fade[0] > 0 || c.fade[1] > 0)
       ? { in: c.fade[0], out: c.fade[1], length: (c.to - (c.from ?? 0)) / speed, skip } : undefined;
-    return { file: fileOf(root, entry, c.src), at, from: start, to: c.to, volume: c.volume ?? 1, speed, ...(fade ? { fade } : {}) };
+    return { file: fileOf(root, entry, c.src), at, from: start, to: c.to, volume: c.volume ?? 1, speed, ...(fade ? { fade } : {}),
+      /* craft: a clip's id and attrs carried for what declares its sound processing (data-craft-duck, plugins/craft) */
+      ...((c.id ?? c.clip) !== undefined ? { id: c.id ?? c.clip } : {}), ...(c.attrs ? { attrs: c.attrs } : {}) };
   }).filter((c) => (c.to == null || c.to > c.from) && existsSync(c.file));
 }
 
@@ -264,7 +266,14 @@ export async function filmSound(s, from, signal) {
   if (!sounds.length) return [];
   const clips = soundSources(s.root, s.entry, sounds, from);
   await knowAudioChannels(clips.map((clip) => clip.file), signal);
-  return clips.filter((clip) => hasAudio(clip.file));
+  const heard = clips.filter((clip) => hasAudio(clip.file));
+  /* craft: a clip that declares ducking (data-craft-duck) is given its chain (plugins/craft); nothing
+     declared, nothing imported and nothing changes */
+  if (heard.some((clip) => clip.attrs?.['data-craft-duck'] !== undefined)) {
+    const { attachDuckChains } = await import('../plugins/craft/src/duck-hook.mjs');
+    return attachDuckChains(heard, { root: s.root, from, signal });
+  }
+  return heard;
 }
 
 const audioStreams = new Map();
