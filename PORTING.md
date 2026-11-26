@@ -56,18 +56,22 @@ patch 文本。每次操作：写入前整体校验 → 说明改了什么 → �
 
 **价值**：AI 生成视频的品控核心——agent 出片后自检，发现问题经操作层（A）修复。
 
-### C. 音频闪避
+### C. 音频闪避 ✅ 已移植（craft duck）
 
 **是什么**：旁白/人声出现时背景乐自动降低音量的闪避曲线（attack/release/follow）。
 
 **ADu 参考**：`adudir-duck.mjs`（248 行）、`adudir-duck-curve/follow/spec`、
 `adudir-volume-envelope`
 
-**上游现状**：**空白但预留了完美挂载点**——`src/sound-engine.mjs` 的 clip chain
-注释明说 "empty today"，且该引擎是纯函数 DSP，预览（AudioWorklet）、导出（Node）、
-测试三端同码。闪避应作为 chain 中的一节实现，核心补丁极小。
-
-**首选移植**：规模最小、挂载点清晰、插件模式的理想样板。
+**移植结果**（commit `2261bb0`）：
+- 声明式：`data-craft-duck` 挂在 `<audio>`/`<video>` 上，协议零改动（`data-*` 本就允许）
+- 全参数：under/speech/pause/ratio/threshold/attack/release/hold/from-to/over 窗口
+- 增益按 10ms 网格计算，缓存于 `.film/craft-duck/`（功率测量也按内容哈希缓存）
+- 注入走上游预留的 `defineProcessor` + clip chain，核心补丁仅 `shared.mjs`/`timeline.mjs`
+  两处共约 10 行（透出 attrs/id + 调用 hook），均有 `craft:` 标记
+- 验证：6/6 插件测试通过（含端到端混音测量），上游 sound/timeline/film-doc 100/100 无回归
+- 已知限制：预览（Studio AudioWorklet）暂未接入（上游 chain 预览接线本身未完成）；
+  变速 clip 的被跟随功率按 speed 映射已处理，但变速音乐本身的闪避未测
 
 ### D. MCP 工具桥
 
