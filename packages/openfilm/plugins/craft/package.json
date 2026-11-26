@@ -4,6 +4,7 @@
   "bin": {
     "duck": "bin/duck.mjs",
     "edit": "bin/edit.mjs",
-    "check": "bin/check.mjs"
+    "check": "bin/check.mjs",
+    "beats": "bin/beats.mjs"
   }
 }
