@@ -25,6 +25,9 @@
 import { existsSync } from 'node:fs';
 import { greyFrames } from '../src/check-frames.mjs';
 import { motionOf, CHECK_FPS, HOLD_BAD } from '../src/check-motion.mjs';
+import { deadLines, DEAD_LIMIT } from '../src/check-dead.mjs';
+import { readVtt } from '../../../src/captions.mjs';
+import { readFileSync } from 'node:fs';
 
 const HELP = `openfilm craft check <video> [--footage] [--json]
 
@@ -35,6 +38,8 @@ const HELP = `openfilm craft check <video> [--footage] [--json]
     scroll  the picture moving mostly up or down for seconds
 
   --footage   the picture moves by itself (vlog footage): no long-move or scroll findings
+  --lines <captions.vtt>   cross the film's caption lines with the stillness read: lines said over
+                           a picture that does not move (死句), dead past 90% of the line
   --json      findings (and steps) as JSON
 
   Render first: openfilm render out.mp4 && openfilm craft check out.mp4`;
@@ -52,6 +57,12 @@ if (!file || !existsSync(file)) {
 }
 const footage = words.includes('--footage');
 const asJson = words.includes('--json');
+const at = words.indexOf('--lines');
+const linesFile = at >= 0 ? words[at + 1] : undefined;
+if (at >= 0 && (!linesFile || !existsSync(linesFile))) {
+  console.error(`✗ --lines: no such caption file — a WebVTT track of the film (its captions, on the film's time)`);
+  process.exit(2);
+}
 
 let data;
 try {
@@ -64,12 +75,19 @@ try {
 const { frames, w, h, fps, duration } = data;
 const result = motionOf({ frames, w, h, fps, footage });
 
+let dead = null;
+if (linesFile) {
+  const vtt = readVtt(readFileSync(linesFile, 'utf8'));
+  dead = deadLines({ steps: result.steps, fps, lines: vtt.cues });
+}
+
 if (asJson) {
   console.log(JSON.stringify({
     file, duration, fps, frames: frames.length,
     stillShare: Number(result.stillShare.toFixed(3)),
     findings: result.findings,
     steps: result.steps.map((s) => (Number.isFinite(s) ? Number(s.toFixed(3)) : null)),
+    ...(dead ? { deadLines: { dead: dead.dead, share: Number(dead.share.toFixed(3)), over: dead.over, lines: dead.lines.map((l) => ({ ...l, share: Number(l.share.toFixed(3)) })) } } : {}),
   }, null, 2));
   process.exit(0);
 }

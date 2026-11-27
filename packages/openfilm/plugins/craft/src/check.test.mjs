@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -133,6 +133,40 @@ test('encoder noise on a still frame stays under STILL_STEP', { skip: !ffmpeg &&
     const steps = [];
     for (let i = 0; i < data.frames.length - 1; i++) steps.push(stepOf(new Uint8Array(data.frames[i]), new Uint8Array(data.frames[i + 1])));
     assert.ok(Math.max(...steps) < STILL_STEP, `encoder noise ${Math.max(...steps).toFixed(3)} under ${STILL_STEP}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('dead lines: a line over a still picture is found, one over motion is not', { skip: !ffmpeg && 'ffmpeg not on the PATH' }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'craft-dead-'));
+  try {
+    /* 4 s of a panning crop, then 4 s still */
+    const video = join(dir, 'film.mp4');
+    execFileSync('ffmpeg', ['-v', 'error', '-y',
+      '-f', 'lavfi', '-i', "testsrc2=size=1280x240:duration=4:rate=10,crop=320:240:x='min(t*200,960)':y=0",
+      '-f', 'lavfi', '-i', 'color=c=red:size=320x240:duration=4:rate=10',
+      '-filter_complex', '[0:v][1:v]concat=n=2:v=1', '-pix_fmt', 'yuv420p', video]);
+    const vtt = join(dir, 'captions.vtt');
+    writeFileSync(vtt, `WEBVTT
+
+1
+00:00:01.000 --> 00:00:03.000
+moving line
+
+2
+00:00:05.000 --> 00:00:07.000
+still line
+`);
+    const run = spawnSync(process.execPath, [BIN, video, '--lines', vtt, '--json'], { encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    const out = JSON.parse(run.stdout);
+    assert.ok(out.deadLines, `dead lines read: ${run.stdout.slice(0, 400)}`);
+    assert.deepEqual(out.deadLines.dead, [1], `the still line only: ${JSON.stringify(out.deadLines.lines)}`);
+    /* human output says it too */
+    const run2 = spawnSync(process.execPath, [BIN, video, '--lines', vtt], { encoding: 'utf8' });
+    assert.equal(run2.status, 0, run2.stderr);
+    assert.ok(run2.stdout.includes('dead'), run2.stdout);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
