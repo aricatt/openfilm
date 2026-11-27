@@ -97,3 +97,11 @@ to the moment, and the file's last moment gives the last frame before it rather 
 ```
 openfilm craft edit '{"op":"insert","src":"assets/freeze.jpg","at":12.4,"len":2}' --why "freeze on the reveal"
 ```
+
+## Vision checks (密字 / 字不停)
+
+`openfilm craft check out.mp4 --vision` reads one frame a second with the configured model: 密字 (a screen of
+small print, few words big enough to read, for seconds on end) and 字不停 (words that never settle long enough
+to read). Configure once: `openfilm craft llm-config <base-url> <api-key> [model]` — written to the user's own
+~/.config/craft/llm.json, never the project, or CRAFT_LLM_BASE_URL / CRAFT_LLM_API_KEY in the environment.
+Each frame is one model call — a minute of film is sixty; mind what the endpoint charges.

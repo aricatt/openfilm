@@ -4,6 +4,9 @@
  * measured on. ffmpeg does the reading; nothing but the frames comes back.
  */
 import { execFile } from 'node:child_process';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { CHECK_FPS, GREY_LONG } from './check-motion.mjs';
 
 const run = (/** @type {string[]} */ args) => new Promise((resolve, reject) => {
@@ -41,4 +44,29 @@ export async function greyFrames(file, { fps = CHECK_FPS, long = GREY_LONG } = {
   const frames = [];
   for (let i = 0; i < count; i++) frames.push(new Uint8Array(raw.buffer, raw.byteOffset + i * size, size));
   return { w, h, fps, frames, duration };
+}
+
+/**
+ * Colour frames for the vision read: one a second, JPEG at most `long` px on the long side, written into a
+ * temp dir and read back as bytes with their seconds. Fewer bytes than PNG, sharp enough for text at 768.
+ * @param {string} file @param {{ fps?: number, long?: number, signal?: AbortSignal }} [o]
+ * @returns {Promise<{ t: number, jpg: Buffer }[]>}
+ */
+export async function visionFrames(file, { fps = 1, long = 768, signal } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'craft-vis-'));
+  try {
+    await new Promise((ok, no) => {
+      execFile('ffmpeg', ['-v', 'error', '-y', '-i', file, '-vf', `fps=${fps},scale='if(gt(iw,ih),min(${long},iw),-2)':'if(gt(iw,ih),-2,min(${long},ih))'`, '-q:v', '4', join(dir, 'f%04d.jpg')],
+        { timeout: 120_000, signal }, (e) => e ? no(e) : ok());
+    });
+    const out = [];
+    for (const f of readdirSync(dir).sort()) {
+      const n = /^f(\d+)\.jpg$/.exec(f);
+      if (!n) continue;
+      out.push({ t: (Number(n[1]) - 1) / fps, jpg: readFileSync(join(dir, f)) });
+    }
+    return out;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }

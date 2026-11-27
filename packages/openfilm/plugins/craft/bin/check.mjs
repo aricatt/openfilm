@@ -27,6 +27,9 @@ import { greyFrames } from '../src/check-frames.mjs';
 import { motionOf, CHECK_FPS, HOLD_BAD } from '../src/check-motion.mjs';
 import { deadLines, DEAD_LIMIT } from '../src/check-dead.mjs';
 import { blendsOf } from '../src/check-blend.mjs';
+import { visionFrames } from '../src/check-frames.mjs';
+import { denseOf, nonstopOf, WORDS_ASK, readWordsAnswer } from '../src/check-vision.mjs';
+import { llmConfig, seeImage } from '../src/llm.mjs';
 import { readVtt } from '../../../src/captions.mjs';
 import { readFileSync } from 'node:fs';
 
@@ -39,6 +42,7 @@ const HELP = `openfilm craft check <video> [--footage] [--json]
     scroll  the picture moving mostly up or down for seconds
 
   --footage   the picture moves by itself (vlog footage): no long-move or scroll findings
+  --vision    one frame a second read by the model (craft llm-config): 密字 dense text, 字不停 words that never settle
   --lines <captions.vtt>   cross the film's caption lines with the stillness read: lines said over
                            a picture that does not move (死句), dead past 90% of the line
   --json      findings (and steps) as JSON
@@ -57,6 +61,7 @@ if (!file || !existsSync(file)) {
   process.exit(2);
 }
 const footage = words.includes('--footage');
+const vision = words.includes('--vision');
 const asJson = words.includes('--json');
 const at = words.indexOf('--lines');
 const linesFile = at >= 0 ? words[at + 1] : undefined;
@@ -78,6 +83,33 @@ const result = motionOf({ frames, w, h, fps, footage });
 const blends = blendsOf({ frames: frames.map((f) => (f instanceof Uint8Array ? f : new Uint8Array(f))), w, h, fps });
 result.findings = [...result.findings, ...blends.findings].sort((x, y) => x.from - y.from);
 
+let visionRead = null;
+if (vision) {
+  const config = llmConfig();
+  if (!config) {
+    console.error('✗ --vision wants the model configured: `openfilm craft llm-config <base-url> <api-key> [model]` — or CRAFT_LLM_BASE_URL / CRAFT_LLM_API_KEY in the environment');
+    process.exit(2);
+  }
+  const frames1s = await visionFrames(file);
+  const seconds = [];
+  let read = 0;
+  for (const f of frames1s) {
+    try {
+      const answer = await seeImage(config, f.jpg, WORDS_ASK, { maxTokens: 2500 });
+      const text = readWordsAnswer(answer);
+      if (text !== null) { seconds.push({ t: f.t, text }); read++; }
+    } catch { /* a second the model does not answer is not read; a gap splits a run */ }
+  }
+  if (!seconds.length) {
+    console.error('✗ the model read no frame — the vision pass found nothing to say');
+    process.exit(1);
+  }
+  const dense = denseOf(seconds);
+  const nonstop = nonstopOf(seconds);
+  visionRead = { seconds: seconds.length, read, findings: [...dense.findings, ...nonstop.findings] };
+  result.findings = [...result.findings, ...visionRead.findings].sort((x, y) => x.from - y.from);
+}
+
 let dead = null;
 if (linesFile) {
   const vtt = readVtt(readFileSync(linesFile, 'utf8'));
@@ -90,6 +122,7 @@ if (asJson) {
     stillShare: Number(result.stillShare.toFixed(3)),
     findings: result.findings,
     steps: result.steps.map((s) => (Number.isFinite(s) ? Number(s.toFixed(3)) : null)),
+    ...(visionRead ? { vision: { seconds: visionRead.seconds, findings: visionRead.findings } } : {}),
     ...(dead ? { deadLines: { dead: dead.dead, share: Number(dead.share.toFixed(3)), over: dead.over, lines: dead.lines.map((l) => ({ ...l, share: Number(l.share.toFixed(3)) })) } } : {}),
   }, null, 2));
   process.exit(0);
