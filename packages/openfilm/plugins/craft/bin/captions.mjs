@@ -20,11 +20,14 @@ import { spawnSync } from 'node:child_process';
 import { llmConfig } from '../src/llm.mjs';
 import { wavOf, hearText, asrModel } from '../src/asr.mjs';
 import { alignText } from '../src/caption-align.mjs';
+import { readInlineWords, writeInlineWords, repairCaptionMarks } from '../src/caption-words.mjs';
 
 const HELP = `openfilm craft captions — word-timed captions from sound
 
   transcribe <media> [out.vtt]        recognize the speech, write captions with word times
   align <media> <text-file> [out.vtt] the text known, align it to the sound — no recognition
+  repair <captions.vtt>               the word times in a file mended: bad ones dropped, broken
+                                      lines timed evenly again — in place, never a refused edit
 
   out.vtt defaults to <media>.vtt beside the media. Word times are inline timestamps in the
   cues — valid WebVTT everywhere, karaoke where it is known.
@@ -42,8 +45,39 @@ if (words.includes('--help') || words.includes('-h') || !words.length) {
 }
 
 const [mode, media, third, fourth] = words;
+if (!['transcribe', 'align', 'repair'].includes(mode)) fail(`unknown mode: ${mode} — transcribe, align or repair`, 2);
+
+if (mode === 'repair') {
+  /* every cue's word times looked at: valid ones kept, bad ones dropped, a line whose words no
+     longer reach the end timed evenly again. The file is written over itself — the repair trio's
+     promise is never to refuse an edit, so nothing here ever fails on bad input. */
+  const file = media;
+  if (!file || !existsSync(file)) fail('repair wants a captions file: craft captions repair captions.vtt', 2);
+  const vtt = readFileSync(file, 'utf8');
+  const cueRe = /(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})\s*-->\s*(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})[^\n]*\r?\n([\s\S]*?)(?=\r?\n\r?\n|\r?\n?$)/g;
+  const toMs = (t) => {
+    const m = t.replace(',', '.').match(/(?:(\d+):)?(\d+):(\d+\.\d+)/);
+    return ((+m[1] || 0) * 3600 + +m[2] * 60 + +m[3]) * 1000;
+  };
+  let repaired = 0, kept = 0, total = 0;
+  const out2 = vtt.replace(cueRe, (whole, from, to, body) => {
+    const text2 = body.trim();
+    if (!text2 || text2.startsWith('NOTE') || text2.startsWith('STYLE')) return whole;
+    total++;
+    const words = readInlineWords(text2);
+    if (!words.marks.length) return whole; /* a plain line: nothing to mend */
+    const cue = { startMs: toMs(from), endMs: toMs(to), text: text2, marks: words.marks };
+    const r = repairCaptionMarks(cue);
+    if (!r.repaired) { kept++; return whole; }
+    repaired++;
+    return `${from} --> ${to}\n${writeInlineWords(words.plain, r.cue.marks)}\n`;
+  });
+  writeFileSync(file, out2);
+  console.log(`✓ ${file}: ${total} lines looked at — ${kept} already right, ${repaired} mended`);
+  process.exit(0);
+}
+
 if (!media || !existsSync(media)) fail(`no such media file: ${media ?? '(none given)'}`, 2);
-if (!['transcribe', 'align'].includes(mode)) fail(`unknown mode: ${mode} — transcribe or align`, 2);
 
 const probe = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', media], { encoding: 'utf8' });
 const duration = parseFloat(probe.stdout);
