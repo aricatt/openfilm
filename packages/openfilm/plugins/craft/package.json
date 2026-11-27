@@ -12,7 +12,8 @@
     "llm-config": "bin/llm-config.mjs",
     "captions": "bin/captions.mjs",
     "mosaic": "bin/mosaic.mjs",
-    "audit": "bin/audit.mjs"
+    "audit": "bin/audit.mjs",
+    "music-fit": "bin/music-fit.mjs"
   },
   "scripts": {
     "start": "node workbench/server.mjs"
