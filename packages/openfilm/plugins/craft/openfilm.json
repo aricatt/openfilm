@@ -8,6 +8,7 @@
     "en": "The craft of a finished film: ducking, checked edits, quality checks, beats.",
     "zh-CN": "成片工艺：音频闪避、可撤销的编辑操作、成片质检、节拍踩点。"
   },
+  "on": true,
   "category": "edit",
   "difficulty": 2,
   "ease": 4,

@@ -50,12 +50,16 @@ if (!root) fail('not in a project (no film.html here or above)', 2);
 const film = await readProjectFilm(root);
 if (!film.value) fail(film.problems[0] ?? 'film.html does not read');
 
-/** Every sound-bearing clip of the film: its sounds and its videos (a video's own sound is heard). */
+/** Every sound-bearing clip of the film: its sounds and its videos (a video's own sound is heard,
+    unless it is turned down to nothing or off). */
+import { clipKind } from '../../../src/film-doc.mjs';
 const sounding = [];
 for (const track of film.value.tracks ?? []) {
   for (const clip of track.clips ?? []) {
     if (clip.src === undefined) continue;
-    if (!('volume' in clip || (clip.overrides ?? []).length || clip.attrs?.[DUCK_ATTR] !== undefined)) continue;
+    const kind = clipKind(clip.src);
+    if (kind !== 'sound' && kind !== 'video') continue;
+    if (clip.disabled || clip.volume === 0) continue;
     sounding.push(clip);
   }
 }
