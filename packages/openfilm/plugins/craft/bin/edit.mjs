@@ -24,6 +24,24 @@ import { readFilm, readFilmFile } from '../../../src/film-doc.mjs';
 import { translateOps, lengthsNeeded } from '../src/edit-ops.mjs';
 import { snapCuts } from '../src/edit-snap.mjs';
 import { recordEdit, undoEdit, dropSnapshot, readLog, hashOf } from '../src/edit-journal.mjs';
+import { readdirSync, statSync } from 'node:fs';
+
+/** every caption track file in the project (.vtt, small text — captions/uncaptions operations write them):
+    snapshotting them makes an undo put back what the edit wrote there, ADu 2.0's media-aware undo */
+function captionFiles(root, dir = '', out = []) {
+  const abs = join(root, dir);
+  let entries = [];
+  try { entries = readdirSync(abs); } catch { return out; }
+  for (const e of entries) {
+    if (['node_modules', '.git', '.film', 'out', 'exports'].includes(e)) continue;
+    const rel = dir ? `${dir}/${e}` : e;
+    try {
+      if (statSync(join(root, rel)).isDirectory()) captionFiles(root, rel, out);
+      else if (/\.vtt$/i.test(e)) out.push(rel);
+    } catch { /* gone between listing and stat */ }
+  }
+  return out;
+}
 
 const HELP = `openfilm craft edit — the film changed by what it is, kept so it can be taken back
 
@@ -176,7 +194,7 @@ for (;;) {
   try {
     const done = await editProjectFilm(root, film.rev, studioOps);
     if (done.rebased && attempt < 3) continue; /* the film changed under us: work the operations out again on the newer film */
-    recordEdit(root, { why, ops, before, after: done.text });
+    recordEdit(root, { why, ops, before, after: done.text, files: captionFiles(root) });
     console.log(`✓ written — ${studioOps.length} operation${studioOps.length === 1 ? '' : 's'}${why ? ` — ${why}` : ''}`);
     console.log('  `openfilm craft edit --undo` takes it back; --log says the edits kept');
     process.exit(0);

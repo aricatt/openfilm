@@ -13,7 +13,7 @@
  */
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 const DIR = 'craft-edit';
 
@@ -36,13 +36,26 @@ export function readLog(root) {
  * Keep an edit: its snapshot (the film.html text before it) and a log line. Returns the entry's sequence number.
  * @param {string} root @param {{ why?: string | null, ops: object[], before: string, after: string }} edit
  */
-export function recordEdit(root, { why = null, ops, before, after }) {
+export function recordEdit(root, { why = null, ops, before, after, files = [] }) {
   const dir = journalDir(root);
   mkdirSync(join(dir, 'snapshots'), { recursive: true });
   const log = readLog(root);
   const seq = (log.length ? Math.max(...log.map((e) => e.seq)) : 0) + 1;
   writeFileSync(join(dir, 'snapshots', `${seq}.html`), before);
-  const entry = { seq, at: new Date().toISOString(), why, ops, hash: hashOf(after), before: `snapshots/${seq}.html` };
+  /* media-aware undo (ADu 2.0): files the edit can write besides film.html (caption tracks), each snapshotted
+     as it is now — a file the edit makes is taken away again when the edit is taken back */
+  const kept = [];
+  for (const path of files) {
+    const abs = join(root, path);
+    const existed = existsSync(abs);
+    if (existed) {
+      const to = join(dir, 'snapshots', `${seq}.files`, path);
+      mkdirSync(dirname(to), { recursive: true });
+      writeFileSync(to, readFileSync(abs));
+    }
+    kept.push({ path, existed });
+  }
+  const entry = { seq, at: new Date().toISOString(), why, ops, hash: hashOf(after), before: `snapshots/${seq}.html`, ...(kept.length ? { files: kept } : {}) };
   writeFileSync(join(dir, 'log.jsonl'), [...log.map((e) => JSON.stringify(e)), JSON.stringify(entry)].join('\n') + '\n');
   return seq;
 }
@@ -69,12 +82,26 @@ export function undoEdit(root, currentText, { force = false } = {}) {
   writeFileSync(join(dir, 'log.jsonl'), log.slice(0, -1).map((e) => JSON.stringify(e)).join('\n') + (log.length > 1 ? '\n' : ''));
   const undone = join(dir, 'undone.jsonl');
   writeFileSync(undone, (existsSync(undone) ? readFileSync(undone, 'utf8') : '') + JSON.stringify({ ...entry, undoneAt: new Date().toISOString() }) + '\n');
+  /* the files the edit wrote, back as they were: ones there before restored, ones the edit made taken away.
+     Done here — they are the journal's own charge, small text files, the film write that follows is the caller's */
+  for (const f of Array.isArray(entry.files) ? entry.files : []) {
+    const abs = join(root, f.path);
+    try {
+      if (f.existed) {
+        const snap = join(dir, 'snapshots', `${entry.seq}.files`, f.path);
+        if (existsSync(snap)) { mkdirSync(dirname(abs), { recursive: true }); writeFileSync(abs, readFileSync(snap)); }
+      } else if (existsSync(abs)) {
+        rmSync(abs);
+      }
+    } catch { /* a file that will not restore does not keep the film itself from going back */ }
+  }
   return { entry, text };
 }
 
 /** The snapshot of an undone edit is let go once the film is written. @param {string} root @param {string} before */
 export function dropSnapshot(root, before) {
   try { rmSync(join(journalDir(root), before)); } catch { /* already gone */ }
+  try { rmSync(join(journalDir(root), before.replace(/\.html$/, '.files')), { recursive: true }); } catch { /* already gone */ }
 }
 
 /** How many edits the journal keeps, for `craft edit --log` to say. @param {string} root */
