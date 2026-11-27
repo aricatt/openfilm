@@ -13,7 +13,8 @@
     "captions": "bin/captions.mjs",
     "mosaic": "bin/mosaic.mjs",
     "audit": "bin/audit.mjs",
-    "music-fit": "bin/music-fit.mjs"
+    "music-fit": "bin/music-fit.mjs",
+    "roughcut": "bin/roughcut.mjs"
   },
   "scripts": {
     "start": "node workbench/server.mjs"
