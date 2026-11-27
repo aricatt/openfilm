@@ -26,6 +26,7 @@ import { existsSync } from 'node:fs';
 import { greyFrames } from '../src/check-frames.mjs';
 import { motionOf, CHECK_FPS, HOLD_BAD } from '../src/check-motion.mjs';
 import { deadLines, DEAD_LIMIT } from '../src/check-dead.mjs';
+import { blendsOf } from '../src/check-blend.mjs';
 import { readVtt } from '../../../src/captions.mjs';
 import { readFileSync } from 'node:fs';
 
@@ -74,6 +75,8 @@ try {
 
 const { frames, w, h, fps, duration } = data;
 const result = motionOf({ frames, w, h, fps, footage });
+const blends = blendsOf({ frames: frames.map((f) => (f instanceof Uint8Array ? f : new Uint8Array(f))), w, h, fps });
+result.findings = [...result.findings, ...blends.findings].sort((x, y) => x.from - y.from);
 
 let dead = null;
 if (linesFile) {
