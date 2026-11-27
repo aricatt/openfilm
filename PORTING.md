@@ -368,3 +368,20 @@ speech-tail / subtitle-overlap 全部建立在 marks 体系上：
   有 → 直接 align；没有 → 混合方案：ASR 出文本/分段 + 静音检测切语音段 + 段内按字均铺
   （caption-words 的 evenCaptionMarks 已具备均铺能力），质量对短视频口播足够。
 - 注意 ASR 与 vision 不同模型，llm.json 需扩 asr_model 字段。
+
+## 九、关键帧验证结论（2026-11-27）：G 组关闭，不移植
+
+**验证结果：上游表达能力是 ADu 关键帧系统的超集。**
+
+ADu keyframes（x/y/sx/sy/r/opacity 数据通道+缓动）：本质是为他们的**原生编辑器工具**服务的
+数据格式（曲线编辑器、拖拽点位、手势确认占契约一半篇幅）。
+
+上游等价能力（全部已存在，实证 film-doc.mjs）：
+- film.html 顶层 `keyframes` 字段：命名 CSS @keyframes
+- clip 级 `animation` 引用，translate/scale/rotate 位移（协议禁止关键帧放置 clip 本身，语义清晰）
+- EFFECTS 系统 14 通道：blur/brightness/contrast/saturate/hue/glow/trim + **3D（z/rx/ry/ax/ay）**——
+  超出 ADu 的 6 通道
+- split 逐字/词/行 stagger 动画
+
+**ADu 真正多出来的是编辑器 GUI**（曲线编辑、点位手势），属产品层而非能力层。
+对 agent 而言 CSS 文本是天然格式，无移植价值。G 组关闭。
