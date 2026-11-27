@@ -350,3 +350,12 @@ speech-tail / subtitle-overlap 全部建立在 marks 体系上：
 3. **speech-tail**：有了 marks 即可移植（剪口点 = max(末词+0.14s, 实际静音+0.06s)）。
 4. **subtitle-overlap**：378 行最大件，逐字显示重叠消解。
 5. **逐字高亮渲染**：上游 timeline/导出是否消费内联戳需验证——不消费则需 core patch 评估。
+
+### ASR 接入情报（MIMO mimo-v2.5-asr，文档已读）
+- **不是** /audio/transcriptions 端点——走 chat/completions + content type `input_audio`（base64 data URL，≤10MB，wav/mp3）
+- 模型 `mimo-v2.5-asr`，`asr_options.language`: auto/zh/en，支持流式
+- base_url 用已配置的 token-plan-cn 代理（与 vision 同），header `api-key` 或 Bearer 待实测
+- **文档未提词级时间戳**——下轮第一件事：实测响应里有没有 timestamps。
+  有 → 直接 align；没有 → 混合方案：ASR 出文本/分段 + 静音检测切语音段 + 段内按字均铺
+  （caption-words 的 evenCaptionMarks 已具备均铺能力），质量对短视频口播足够。
+- 注意 ASR 与 vision 不同模型，llm.json 需扩 asr_model 字段。
