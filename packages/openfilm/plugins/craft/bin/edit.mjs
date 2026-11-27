@@ -22,11 +22,12 @@ import { lookProject } from '../../../src/plugin-look.mjs';
 import { editProjectFilm, readProjectFilm } from '../../../studio/server/film.mjs';
 import { readFilm, readFilmFile } from '../../../src/film-doc.mjs';
 import { translateOps, lengthsNeeded } from '../src/edit-ops.mjs';
+import { snapCuts } from '../src/edit-snap.mjs';
 import { recordEdit, undoEdit, dropSnapshot, readLog, hashOf } from '../src/edit-journal.mjs';
 
 const HELP = `openfilm craft edit — the film changed by what it is, kept so it can be taken back
 
-  openfilm craft edit '<op>' | '[<op>, …]' [--why "…"] [--dry-run]
+  openfilm craft edit '<op>' | '[<op>, …]' [--why "…"] [--dry-run] [--snap]
   openfilm craft edit --undo [--force]
   openfilm craft edit --log
 
@@ -49,6 +50,8 @@ Studio operations pass through as they are:
   {"op":"captions","at":0,"captions":{"src":"caps.vtt"}}   {"op":"uncaptions","src":"caps.vtt"}
 
 --dry-run: the operations worked out and the film checked, nothing written.
+--snap:    split/trim cuts on a clip move to the nearest silence first (±0.6 s, a breath kept) —
+           for speech. Never refused: where there is no silence near, it is said and the cut stands.
 Exit status: 0 done, 1 the edit failed (nothing written), 2 not a project or a wrong command.`;
 
 function fail(/** @type {string} */ what, /** @type {number} */ code = 1) {
@@ -106,6 +109,7 @@ if (words[0] === '--undo') {
 const json = words.find((w) => !w.startsWith('--'));
 if (!json) fail('name the operations: openfilm craft edit \'<op or [ops]>\' (--help says them)', 2);
 const dryRun = words.includes('--dry-run');
+const snap = words.includes('--snap');
 const whyAt = words.indexOf('--why');
 const why = whyAt >= 0 ? words[whyAt + 1] ?? null : null;
 
@@ -133,6 +137,15 @@ for (;;) {
     for (const src of probeSrcs) {
       const facts = await mediaFacts(join(root, src)).catch(() => null);
       if (facts?.duration) lengths[src] = facts.duration;
+    }
+  }
+
+  if (snap) {
+    try {
+      const said = await snapCuts(root, ops, film.value);
+      for (const line of said) console.log(`· ${line}`);
+    } catch (e) {
+      console.warn(`· snap: ${/** @type {Error} */ (e).message} — the cuts stand as asked`);
     }
   }
 
