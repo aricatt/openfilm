@@ -30,6 +30,7 @@ import { soundStretches, cueCover, uncovered } from '../src/check-uncovered.mjs'
 import { blendsOf } from '../src/check-blend.mjs';
 import { visionFrames } from '../src/check-frames.mjs';
 import { denseOf, nonstopOf, WORDS_ASK, readWordsAnswer } from '../src/check-vision.mjs';
+import { collisionsOf } from '../src/check-collision.mjs';
 import { llmConfig, seeImage } from '../src/llm.mjs';
 import { readVtt } from '../../../src/captions.mjs';
 import { readFileSync } from 'node:fs';
@@ -107,7 +108,8 @@ if (vision) {
   }
   const dense = denseOf(seconds);
   const nonstop = nonstopOf(seconds);
-  visionRead = { seconds: seconds.length, read, findings: [...dense.findings, ...nonstop.findings] };
+  const collisions = collisionsOf(seconds);
+  visionRead = { seconds: seconds.length, read, findings: [...dense.findings, ...nonstop.findings, ...collisions.findings] };
   result.findings = [...result.findings, ...visionRead.findings].sort((x, y) => x.from - y.from);
 }
 
