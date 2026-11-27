@@ -26,6 +26,7 @@ import { existsSync } from 'node:fs';
 import { greyFrames } from '../src/check-frames.mjs';
 import { motionOf, CHECK_FPS, HOLD_BAD } from '../src/check-motion.mjs';
 import { deadLines, DEAD_LIMIT } from '../src/check-dead.mjs';
+import { soundStretches, cueCover, uncovered } from '../src/check-uncovered.mjs';
 import { blendsOf } from '../src/check-blend.mjs';
 import { visionFrames } from '../src/check-frames.mjs';
 import { denseOf, nonstopOf, WORDS_ASK, readWordsAnswer } from '../src/check-vision.mjs';
@@ -111,9 +112,19 @@ if (vision) {
 }
 
 let dead = null;
+let uncoveredSpeech = null;
 if (linesFile) {
   const vtt = readVtt(readFileSync(linesFile, 'utf8'));
   dead = deadLines({ steps: result.steps, fps, lines: vtt.cues });
+  const sound = soundStretches(file, duration);
+  if (sound) {
+    const gaps = uncovered(sound, cueCover(vtt.cues.map((c) => [c.start, c.end])));
+    uncoveredSpeech = { gaps };
+    for (const [a, b] of gaps) {
+      result.findings.push({ level: 'bad', check: 'uncovered', from: a, to: b, said: `speech with no caption over it` });
+    }
+    result.findings.sort((x, y) => x.from - y.from);
+  }
 }
 
 if (asJson) {
@@ -123,6 +134,7 @@ if (asJson) {
     findings: result.findings,
     steps: result.steps.map((s) => (Number.isFinite(s) ? Number(s.toFixed(3)) : null)),
     ...(visionRead ? { vision: { seconds: visionRead.seconds, findings: visionRead.findings } } : {}),
+    ...(uncoveredSpeech ? { uncoveredSpeech: { gaps: uncoveredSpeech.gaps.map(([a, b]) => [Number(a.toFixed(2)), Number(b.toFixed(2))]) } } : {}),
     ...(dead ? { deadLines: { dead: dead.dead, share: Number(dead.share.toFixed(3)), over: dead.over, lines: dead.lines.map((l) => ({ ...l, share: Number(l.share.toFixed(3)) })) } } : {}),
   }, null, 2));
   process.exit(0);
