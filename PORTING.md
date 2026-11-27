@@ -395,7 +395,7 @@ ADu keyframes（x/y/sx/sy/r/opacity 数据通道+缓动）：本质是为他们�
 
 ### 移植总盘点（当前）
 - 第一档 9 组核心 ✅ 全完成
-- 字幕组 F ✅ 5/6（仅写入路径 repair 小项）
+- 字幕组 F ✅ **6/6 全清零**（含 captions repair 写入路径修复，53b7569）
 - mosaic + audit ✅
 - keyframes 组：已关闭（上游原生 CSS keyframes 够用）
 - **music-fit / roughcut-bake ✅ 本轮清零**
