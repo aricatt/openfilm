@@ -385,3 +385,22 @@ ADu keyframes（x/y/sx/sy/r/opacity 数据通道+缓动）：本质是为他们�
 
 **ADu 真正多出来的是编辑器 GUI**（曲线编辑、点位手势），属产品层而非能力层。
 对 agent 而言 CSS 文本是天然格式，无移植价值。G 组关闭。
+
+## 状态更新（music-fit + roughcut 轮，commits 97cf636 / 6535e90）
+
+### 新完成
+- **music-fit** ✅：`planMusic` 忠实移植（小节对齐故事点/quiet 段/tail 收尾），CLI 生成 craft-edit ops 走既有编辑管线（可撤销）。beats.json 格式与 ADu 完全兼容，缓存复用 craft beats 产物。6/6 单测 + 端到端验证。
+- **roughcut-bake** ✅：口播粗剪烘焙。上游把 `#t=` 解析进 `clip.time`（与 ADu 模型一致），扫描逻辑几乎原样。ffmpeg concat + 接缝 12ms 淡入淡出防爆音，按切点哈希缓存不重复烘焙。`--apply` 走 journaled edit 管线可撤销。端到端：两碎片精确烘出 6.000s。6/6 单测。
+- 测试总数 96/96。
+
+### 移植总盘点（当前）
+- 第一档 9 组核心 ✅ 全完成
+- 字幕组 F ✅ 5/6（仅写入路径 repair 小项）
+- mosaic + audit ✅
+- keyframes 组：已关闭（上游原生 CSS keyframes 够用）
+- **music-fit / roughcut-bake ✅ 本轮清零**
+- 剩余候选：写入路径 repair 扫尾、工作台操作按钮、真实使用反馈迭代
+
+### 下一步建议
+真实使用验证优先于新移植。用户实测反馈 > 继续搬功能。
+
