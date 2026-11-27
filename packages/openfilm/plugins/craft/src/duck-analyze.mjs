@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { closeSync, existsSync, mkdirSync, openSync, readSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { duckCurve, duckParams, GRID } from './duck-curve.mjs';
+import { duckCurve, GRID } from './duck-curve.mjs';
 
 /** The rate power is measured at: speech's shape kept, a fraction of the mix's cost. */
 const MEASURE_RATE = 16000;
@@ -116,7 +116,7 @@ export async function curveCached({ cacheDir, keyMaterial, power, frames, params
       if (Array.isArray(kept.gains) && kept.gains.length) return kept.gains;
     } catch { /* written over while read: worked out again */ }
   }
-  const gains = Array.from(duckCurve(power, frames, duckParams(params)));
+  const gains = Array.from(duckCurve(power, frames, params));
   writeFileSync(file, JSON.stringify({ gains }));
   return gains;
 }

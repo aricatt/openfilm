@@ -115,3 +115,14 @@ test('the film end to end: music under a voice, mixed, the music measured down w
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('a declaration whose JSON cannot be read is no duck, never an error (ADu 2.0 readDuck)', async () => {
+  const { attachDuckChains, DUCK_ATTR } = await import('./duck-hook.mjs');
+  const broken = { id: 'music', file: 'x.mp3', at: 0, from: 0, attrs: { [DUCK_ATTR]: '{"speech":' } };
+  const voice = { id: 'voice', file: 'y.mp3', at: 0, from: 0, attrs: {} };
+  const out = await attachDuckChains([broken, voice], { root: tmpdir(), from: 0 });
+  assert.equal(out[0].chain, undefined);
+  /* a mark that reads but is wrong is still refused */
+  const wrong = { id: 'music2', file: 'x.mp3', at: 0, from: 0, attrs: { [DUCK_ATTR]: '{"speech":99}' } };
+  await assert.rejects(() => attachDuckChains([wrong, voice], { root: tmpdir(), from: 0 }), /speech/);
+});

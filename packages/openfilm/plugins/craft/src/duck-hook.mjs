@@ -7,7 +7,7 @@
  * The processors themselves are registered by importing duck-processor.mjs here, so a film that declares
  * ducking has its processor defined in this realm before its chain is built.
  */
-import { duckParams, GRID } from './duck-curve.mjs';
+import { duckParams, readDuck, GRID } from './duck-curve.mjs';
 import { contentIdentity, curveCached, measurePowerCached, placePower } from './duck-analyze.mjs';
 import './duck-processor.mjs';
 import { join } from 'node:path';
@@ -25,11 +25,9 @@ export async function attachDuckChains(clips, { root, from, signal }) {
   for (const c of clips) {
     const raw = c.attrs?.[DUCK_ATTR];
     if (raw === undefined) continue;
-    let parsed = null;
-    if (raw.trim()) {
-      try { parsed = JSON.parse(raw); } catch (e) { throw new Error(`${c.id ?? c.file}: data-craft-duck is not JSON: ${/** @type {Error} */ (e).message}`); }
-    }
-    ducking.push({ clip: c, params: duckParams(parsed) });
+    const parsed = readDuck(raw);
+    if (parsed === undefined) continue;
+    ducking.push({ clip: c, params: duckParams(parsed), raw: parsed });
   }
   if (!ducking.length) return clips;
 
@@ -71,7 +69,7 @@ export async function attachDuckChains(clips, { root, from, signal }) {
       keyMaterial: { params, follows: keyFiles, v: 1 },
       power,
       frames,
-      params: clip.attrs[DUCK_ATTR].trim() ? JSON.parse(clip.attrs[DUCK_ATTR]) : null,
+      params,
     });
     clip.chain = [{ name: 'craft-duck', gains, at: from + clip.at }];
   }

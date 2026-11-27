@@ -32,6 +32,25 @@ export const dbGain = (db) => 10 ** (db / 20);
  * (empty: every other sounding clip), `over` the windows set to a level whatever is said.
  * @param {unknown} raw what data-craft-duck carried (JSON), or null for the defaults
  */
+/**
+ * A declaration read wherever a film is read (ADu 2.0's readDuck): JSON that cannot be read at all
+ * is no duck — said once in the log, never an error, so one broken mark does not refuse the whole film.
+ * A mark that reads but is wrong is still refused (duckParams throws), and craft edit never writes a broken one.
+ * @param {string | object | undefined | null} raw
+ * @returns {object | null | undefined} undefined: not a duck; null: declared empty (defaults); object: the parsed declaration
+ */
+export function readDuck(raw) {
+  if (typeof raw === 'string') {
+    if (!raw.trim()) return null;
+    try { return JSON.parse(raw); } catch {
+      if (!warned) { warned = true; console.warn('[craft duck] data-craft-duck 标注读不出，当作没有自动压低'); }
+      return undefined;
+    }
+  }
+  return raw ?? null;
+}
+let warned = false;
+
 export function duckParams(raw) {
   /** @type {Record<string, unknown>} */
   const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? /** @type {Record<string, unknown>} */ (raw) : {};
