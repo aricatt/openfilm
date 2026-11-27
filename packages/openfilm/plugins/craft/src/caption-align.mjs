@@ -59,13 +59,19 @@ const stamp = (ms) => {
 };
 
 /**
- * The cues as a WebVTT file, inline stamps in every line's text.
+ * The cues as a WebVTT file, inline stamps in every line's text; a style block when given
+ * (the karaoke look, upstream draws ::cue(:past)/::cue(:future) as the word times say).
  * @param {{ text: string, startMs: number, endMs: number }[]} cues
  */
-export function vttOf(cues) {
+export function vttOf(cues, { style } = {}) {
+  const head = style ? `STYLE\n${style}\n\n` : '';
   const body = cues.map((c) => `${stamp(c.startMs)} --> ${stamp(c.endMs)}\n${timedText(c)}`).join('\n\n');
-  return `WEBVTT\n\n${body}\n`;
+  return `WEBVTT\n\n${head}${body}\n`;
 }
+
+/** The karaoke look when nothing says otherwise: the word spoken turns gold, the rest stay white. */
+export const KARAOKE_STYLE = `::cue { color: #ffffff; }
+::cue(:past) { color: #ffd44d; }`;
 
 /**
  * The whole alignment: the file's sound found, the lines laid over it, the vtt written.
@@ -76,5 +82,5 @@ export function alignText(file, duration, text) {
   const stretches = soundStretches(file, duration);
   if (!stretches?.length) return null;
   const cues = layLines(linesOf(text), stretches);
-  return { vtt: vttOf(cues), cues, stretches };
+  return { vtt: vttOf(cues, { style: KARAOKE_STYLE }), cues, stretches };
 }
