@@ -6,6 +6,7 @@
     "edit": "bin/edit.mjs",
     "check": "bin/check.mjs",
     "beats": "bin/beats.mjs",
-    "ramp": "bin/ramp.mjs"
+    "ramp": "bin/ramp.mjs",
+    "still": "bin/still.mjs"
   }
 }

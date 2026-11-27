@@ -239,18 +239,18 @@ Producer 工作台）在引擎之外，与本移植无关。
 
 | craft 功能 | 2.0 对应模块变化 | 对齐行动 |
 |---|---|---|
-| duck | `adudir-duck-spec` +14 行：新增 `readDuck`——**JSON 读不出的闪避声明不再让整部影片拒绝渲染**，警告一次按无闪避处理 | **待对齐**（小）：craft duck-hook 同样容错 |
+| duck | `adudir-duck-spec` +14 行：新增 `readDuck`——**JSON 读不出的闪避声明不再让整部影片拒绝渲染**，警告一次按无闪避处理 | ✅ **已对齐**（77adcf0）：craft readDuck 同语义 |
 | edit | `adudir-edit` +16 行：undo 变为**媒体感知**——被替换的媒体文件从工程版本记录恢复（adudir-undo-media）；我们的 undo 只快照 film.html | 列为增强项，中优先级 |
 | check | `adudir-film-checks` **未变**；look-checks +1 行；preview-check +22 行 | 无需行动 |
 | beats | **未变** | 无 |
 | ramp | `adudir-speed-ramp` **0 diff**；movie-clock 58→104 行（fork 内部时钟，与我们无关） | 无 |
-| still-frame（未移植） | 39→145 行大扩展：末尾帧回退抽取 + 导出用 exactStill | **移植时用 2.0 版作参考** |
+| still-frame | 39→145 行大扩展：末尾帧回退抽取 + 导出用 exactStill | ✅ **抽取半已移植**（stillFrame+回退，`craft still`）；exactStill 属 fork 渲染管线，不移植 |
 
 ### 2.0 新增模块的移植价值评估
 
 | 模块 | 行数 | 是什么 | 评估 |
 |---|---|---|---|
-| `adudir-mcp/snap-cuts` | 101 | **切分/修剪语音 clip 时切口自动吸附到最近静音**（防卡字/吃尾音），无静音则一行说明 | **高价值**，直接增强 craft edit，建议下一批移植 |
+| `adudir-mcp/snap-cuts` | 101 | **切分/修剪语音 clip 时切口自动吸附到最近静音**（防卡字/吃尾音），无静音则一行说明 | ✅ **已移植**（6105cec）：`craft edit --snap` |
 | `adudir-film-health` + `adudir-film-literals` | 55+71 | 不开浏览器检查工程健康：composition 读不出、页面缺失、页面读了未声明的参数（acorn 静态分析） | 中价值，QA 类，小型 |
 | `adudir-caption-marks` | 82 | 字幕逐字时间损坏时**修复而非拒绝**（丢出位时间、不足两处重排） | 属字幕组（F），随字幕组评估 |
 | `adudir-roughcut-bake` + `mcp/roughcut-inputs` | 210+ | 口播粗剪**烘焙**：时间线上的粗剪结果固化成新文件，模板重做时不会把重录/停顿读回来 | 口播流程相关，看产品方向 |

@@ -74,3 +74,26 @@ trims, moves and cuts keep their times. A curved clip is not heard: its sound wo
 change one with craft edit's `attr` operation, then `openfilm craft ramp` checks every declaration reads.
 
 (More as they are ported: see PORTING.md at the repository root.)
+
+## Lines said over a still picture (死句)
+
+`openfilm craft check out.mp4 --lines captions.vtt` crosses the film's caption cues (WebVTT, on the film's
+time) with the stillness read: a line the picture is still for 90% of is dead, and dead lines past a tenth
+of all lines fail the craft bar. One held moment with a line over it can be meant — a film of them reads
+as a slideshow with a voiceover.
+
+## Cuts that snap to silence
+
+`openfilm craft edit '[…]' --snap` moves split/trim cuts to the nearest silence first (±0.6 s — a split to
+its middle, a trimmed edge keeping a 0.1 s breath), so speech is never cut inside a word. Where there is no
+silence near it is said in one line and the cut stands — never refused. Use it when cutting speech; clips
+playing at other than their own speed are left alone.
+
+## Freeze frames
+
+`openfilm craft still video.mp4 12.4 assets/freeze.jpg` draws one frame of a video out as a JPEG — accurate
+to the moment, and the file's last moment gives the last frame before it rather than failing. Then place it:
+
+```
+openfilm craft edit '{"op":"insert","src":"assets/freeze.jpg","at":12.4,"len":2}' --why "freeze on the reveal"
+```
