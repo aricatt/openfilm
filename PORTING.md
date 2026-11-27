@@ -332,3 +332,21 @@ speech-tail / subtitle-overlap 全部建立在 marks 体系上：
 
 ### mosaic（马赛克/局部模糊）
 待做，上游确认无。需要渲染层调查（H 组帧网格支撑）。
+
+## 八、逐字字幕体系（2026-11-27 立项，用户已决策：做）
+
+### 设计（与 ADu 的关键差异：落在 WebVTT 标准上）
+- **存储**：WebVTT 内联时间戳（karaoke 标准格式 `<00:01.200>` 在词前），不用 ADu 私有 JSON。
+  带内联戳的 cue 仍是合法 cue——支持的播放器逐字高亮，不支持的整行显示，影片永不依赖 craft。
+- **内存表示**：marks = {index(UTF-16), startMs} 列表，与 ADu 同形，修复算法直接适用。
+- **地基已落地** `src/caption-words.mjs`（5/5 测试）：readInlineWords/writeInlineWords 往返一致
+  + caption-marks 修复三件套（valid/even/repair，重写实现）。
+
+### 待做（按依赖顺序）
+1. **ASR 逐字对齐**：whisper.cpp 本地二进制（对齐 ADu 的 local-asr）或云端。产出 marks。
+   `craft captions align <audio> <vtt>`：音频+已有字幕文本 → 写入内联时间戳。选型待定：
+   whisper.cpp 无依赖但需分发二进制；faster-whisper 需 python 环境。
+2. **写入路径接入**：edit/captions 写 VTT 时统一过 repairCaptionMarks（ADu 教训：一处坏时间全文件拒编）。
+3. **speech-tail**：有了 marks 即可移植（剪口点 = max(末词+0.14s, 实际静音+0.06s)）。
+4. **subtitle-overlap**：378 行最大件，逐字显示重叠消解。
+5. **逐字高亮渲染**：上游 timeline/导出是否消费内联戳需验证——不消费则需 core patch 评估。
