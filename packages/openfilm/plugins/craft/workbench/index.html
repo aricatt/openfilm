@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>剪辑工艺 · craft</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: #141416; color: #d8d8dc; padding: 24px; max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 600; color: #f0f0f2; margin-bottom: 4px; }
+  h2 { font-size: 15px; font-weight: 600; color: #e8e8ec; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .sub { color: #888; font-size: 12px; margin-bottom: 20px; }
+  section { background: #1c1c20; border: 1px solid #2a2a30; border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+  .ok { background: #1d3a24; color: #6fd68a; }
+  .warn { background: #3a2f1d; color: #e0b35c; }
+  .err { background: #3a1d1d; color: #e06c6c; }
+  .idle { background: #2a2a30; color: #999; }
+  button { background: #2d5fd0; color: #fff; border: 0; border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
+  button:hover { background: #3a6de0; }
+  button:disabled { background: #333; color: #777; cursor: default; }
+  button.ghost { background: #2a2a30; color: #bbb; }
+  button.ghost:hover { background: #34343c; }
+  select { background: #26262c; color: #ddd; border: 1px solid #3a3a42; border-radius: 6px; padding: 5px 8px; font-size: 13px; }
+  canvas { width: 100%; border-radius: 6px; background: #121214; display: block; }
+  .row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .note { color: #888; font-size: 12px; }
+  .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; color: #aaa; max-height: 200px; overflow: auto; }
+  .finding { padding: 6px 10px; border-radius: 6px; margin: 4px 0; font-size: 13px; }
+  .finding.bad { background: #3a1d1d22; border-left: 3px solid #e06c6c; }
+  .finding.warn { background: #3a2f1d22; border-left: 3px solid #e0b35c; }
+  .finding.good { background: #1d3a2422; border-left: 3px solid #6fd68a; }
+  .decl { background: #232328; border-radius: 6px; padding: 8px 12px; margin: 6px 0; font-size: 13px; }
+  .decl code { color: #7db8f0; font-size: 12px; }
+  .legend { display: flex; gap: 16px; font-size: 12px; color: #999; margin-top: 6px; }
+  .legend i { display: inline-block; width: 16px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid #555; border-top-color: #7db8f0; border-radius: 50%; animation: sp 0.8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<h1>剪辑工艺工作台</h1>
+<div class="sub" id="proj">craft — 从 ADu Director 移植的剪辑工艺，在这里看见它</div>
+
+<section>
+  <h2>工程体检 <span class="badge idle" id="healthBadge">…</span></h2>
+  <div class="mono" id="healthOut">读取中…</div>
+</section>
+
+<section>
+  <h2>音频闪避 <span class="badge idle" id="duckBadge">…</span></h2>
+  <div class="note" style="margin-bottom:8px">音乐如何躲避人声：紫色是人声功率，绿色是音乐增益——人声起、音乐落。</div>
+  <div id="duckBody"><div class="note">分析中（首次需要解码音频，约几秒）…</div></div>
+</section>
+
+<section>
+  <h2>节拍网格 <span class="badge idle" id="beatsBadge">待机</span></h2>
+  <div class="row">
+    <select id="beatsFile"></select>
+    <button id="beatsGo">分析节拍</button>
+    <span class="note" id="beatsMsg"></span>
+  </div>
+  <canvas id="beatsCanvas" height="90" class="hidden"></canvas>
+  <div class="legend hidden" id="beatsLegend">
+    <span><i style="background:#7db8f0"></i>节拍</span>
+    <span><i style="background:#e0b35c"></i>小节</span>
+    <span><i style="background:#555"></i>段落分界</span>
+  </div>
+  <div class="mono hidden" id="beatsOut"></div>
+</section>
+
+<section>
+  <h2>成片质检 <span class="badge idle" id="checkBadge">待机</span></h2>
+  <div class="row">
+    <select id="checkFile"></select>
+    <button id="checkGo">检测</button>
+    <label class="note"><input type="checkbox" id="checkVision"> 含文字检测（调 LLM，每秒 1 次）</label>
+    <span class="note" id="checkMsg"></span>
+  </div>
+  <canvas id="checkCanvas" height="70" class="hidden"></canvas>
+  <div class="legend hidden" id="checkLegend">
+    <span><i style="background:#e06c6c"></i>不过线</span>
+    <span><i style="background:#e0b35c"></i>留意</span>
+    <span><i style="background:#4a4a55"></i>时间刻度</span>
+  </div>
+  <div id="checkOut"></div>
+</section>
+
+<section>
+  <h2>工艺声明</h2>
+  <div class="note" style="margin-bottom:8px">film.html 里 clip 上携带的 data-craft-* 声明——工艺的入口。</div>
+  <div id="declBody"><div class="note">读取中…</div></div>
+</section>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const get = async (path) => {
+  const r = await fetch(path);
+  return r.json();
+};
+const badge = (el, cls, text) => { el.className = 'badge ' + cls; el.textContent = text; };
+
+/* HiDPI canvas setup */
+function setupCanvas(cv) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.height;
+  cv.width = w * dpr; cv.height = h * dpr;
+  const ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return [ctx, w, h];
+}
+
+/* ---------- overview ---------- */
+let overview = null;
+async function loadOverview() {
+  overview = await get('/api/overview');
+  $('proj').textContent = overview.project;
+  badge($('healthBadge'), overview.healthOk ? 'ok' : 'err', overview.healthOk ? '健康' : '有问题');
+  $('healthOut').textContent = overview.health || '(无输出)';
+
+  /* declarations */
+  const db = $('declBody');
+  if (!overview.declarations.length) {
+    db.innerHTML = '<div class="note">影片里还没有工艺声明。给音乐加 data-craft-duck、给视频加 data-craft-ramp 后这里会显示。</div>';
+  } else {
+    db.innerHTML = overview.declarations.map((d) =>
+      `<div class="decl"><b>${esc(d.id)}</b> <span class="note">${esc(d.src)}</span><br>${
+        Object.entries(d.attrs).map(([k, v]) => `<code>${esc(k)}='${esc(String(v))}'</code>`).join(' ')
+      }</div>`).join('');
+  }
+
+  /* file pickers */
+  $('beatsFile').innerHTML = overview.music.map((f) => `<option>${esc(f)}</option>`).join('') || '<option value="">(无音频文件)</option>';
+  $('checkFile').innerHTML = overview.videos.map((f) => `<option>${esc(f)}</option>`).join('') || '<option value="">(无视频文件)</option>';
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+/* ---------- duck ---------- */
+async function loadDuck() {
+  const d = await get('/api/duck');
+  const body = $('duckBody');
+  if (d.error) {
+    badge($('duckBadge'), 'err', '错误');
+    body.innerHTML = `<div class="note">${esc(d.error)}</div>`;
+    return;
+  }
+  if (!d.declarations.length) {
+    badge($('duckBadge'), 'idle', '无声明');
+    body.innerHTML = '<div class="note">' + esc(d.note || '影片没有闪避声明') + '</div>';
+    return;
+  }
+  const ok = d.declarations.filter((x) => !x.error);
+  badge($('duckBadge'), ok.length ? 'ok' : 'warn', `${ok.length} 处生效`);
+  body.innerHTML = '';
+  for (const decl of d.declarations) {
+    if (decl.error) {
+      body.innerHTML += `<div class="finding warn">✗ ${esc(decl.id)}: ${esc(decl.error)}</div>`;
+      continue;
+    }
+    const div = document.createElement('div');
+    div.innerHTML = `<div class="note" style="margin:8px 0 4px"><b>${esc(decl.id)}</b> 跟随 ${decl.follows.map(esc).join('、')} ·
+      人声 ${decl.params.speech}dB / 间隙 ${decl.params.pause}dB / 压缩比 ${decl.params.ratio}</div>
+      <canvas height="110"></canvas>
+      <div class="legend"><span><i style="background:#b080e0"></i>人声功率 dB</span><span><i style="background:#6fd68a"></i>音乐增益 dB</span></div>`;
+    body.appendChild(div);
+    drawDuck(div.querySelector('canvas'), decl);
+  }
+}
+
+function drawDuck(cv, decl) {
+  requestAnimationFrame(() => {
+    const [ctx, w, h] = setupCanvas(cv);
+    const { times, voiceDb, gainDb } = decl;
+    if (!times.length) return;
+    const tMax = times[times.length - 1] || 1;
+    const x = (t) => (t / tMax) * (w - 40) + 34;
+    /* voice: -60..0 dB top half; gain: -20..0 bottom half */
+    const vy = (db) => 8 + (1 - Math.max(0, Math.min(1, (db + 60) / 55))) * (h / 2 - 16);
+    const gy = (db) => h / 2 + 8 + (1 - Math.max(0, Math.min(1, (db + 24) / 24))) * (h / 2 - 20);
+    /* voice area */
+    ctx.beginPath();
+    ctx.moveTo(x(times[0]), vy(-60));
+    for (let i = 0; i < times.length; i++) ctx.lineTo(x(times[i]), vy(voiceDb[i]));
+    ctx.lineTo(x(times[times.length - 1]), vy(-60));
+    ctx.closePath();
+    ctx.fillStyle = '#b080e033';
+    ctx.fill();
+    ctx.beginPath();
+    for (let i = 0; i < times.length; i++) i ? ctx.lineTo(x(times[i]), vy(voiceDb[i])) : ctx.moveTo(x(times[i]), vy(voiceDb[i]));
+    ctx.strokeStyle = '#b080e0';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    /* gain line */
+    ctx.beginPath();
+    for (let i = 0; i < times.length; i++) i ? ctx.lineTo(x(times[i]), gy(gainDb[i])) : ctx.moveTo(x(times[i]), gy(gainDb[i]));
+    ctx.strokeStyle = '#6fd68a';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    /* labels */
+    ctx.fillStyle = '#666';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('人声', 4, 14);
+    ctx.fillText('增益', 4, h / 2 + 14);
+    ctx.fillText('0s', 34, h - 4);
+    ctx.fillText(tMax.toFixed(0) + 's', w - 34, h - 4);
+    ctx.strokeStyle = '#333';
+    ctx.beginPath(); ctx.moveTo(30, h / 2); ctx.lineTo(w - 6, h / 2); ctx.stroke();
+  });
+}
+
+/* ---------- beats ---------- */
+$('beatsGo').onclick = async () => {
+  const file = $('beatsFile').value;
+  if (!file) return;
+  $('beatsGo').disabled = true;
+  $('beatsMsg').innerHTML = '<span class="spin"></span>分析中（解码音频，首次约十几秒）…';
+  badge($('beatsBadge'), 'idle', '分析中');
+  try {
+    const r = await get('/api/beats?file=' + encodeURIComponent(file));
+    if (r.error) throw new Error(r.error);
+    badge($('beatsBadge'), 'ok', `${r.bpm?.toFixed?.(1) ?? '?'} BPM`);
+    $('beatsMsg').textContent = '';
+    $('beatsCanvas').classList.remove('hidden');
+    $('beatsLegend').classList.remove('hidden');
+    $('beatsOut').classList.remove('hidden');
+    $('beatsOut').textContent = JSON.stringify({ bpm: r.bpm, beats: r.beats?.length, bars: r.bars, sections: r.sections }, null, 1);
+    drawBeats(r);
+  } catch (e) {
+    badge($('beatsBadge'), 'err', '失败');
+    $('beatsMsg').textContent = e.message;
+  }
+  $('beatsGo').disabled = false;
+};
+
+function drawBeats(r) {
+  requestAnimationFrame(() => {
+    const cv = $('beatsCanvas');
+    const [ctx, w, h] = setupCanvas(cv);
+    const beats = r.beats ?? [];
+    if (!beats.length) return;
+    const tEnd = Math.max(...beats.map((b) => b.t ?? b)) * 1.05;
+    const x = (t) => (t / tEnd) * (w - 20) + 10;
+    /* sections as background bands */
+    for (const s of r.sections ?? []) {
+      ctx.fillStyle = '#4a4a5518';
+      ctx.fillRect(x(s.t ?? s[0]), 0, x(s.end ?? s[1]) - x(s.t ?? s[0]), h - 20);
+      ctx.fillStyle = '#777';
+      ctx.font = '10px sans-serif';
+      ctx.fillText(s.name ?? s.label ?? '', x(s.t ?? s[0]) + 4, 12);
+    }
+    const barSet = new Set((r.bars ?? []).map((b) => +(b.t ?? b).toFixed(3)));
+    for (const b of beats) {
+      const t = +(b.t ?? b).toFixed(3);
+      const isBar = barSet.has(t) || b.bar;
+      ctx.strokeStyle = isBar ? '#e0b35c' : '#7db8f0';
+      ctx.lineWidth = isBar ? 2 : 1;
+      ctx.beginPath();
+      ctx.moveTo(x(b.t ?? b), isBar ? 8 : h * 0.35);
+      ctx.lineTo(x(b.t ?? b), h - 20);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#666';
+    ctx.fillText('0s', 10, h - 5);
+    ctx.fillText(tEnd.toFixed(0) + 's', w - 34, h - 5);
+  });
+}
+
+/* ---------- check ---------- */
+$('checkGo').onclick = async () => {
+  const file = $('checkFile').value;
+  if (!file) return;
+  $('checkGo').disabled = true;
+  const vision = $('checkVision').checked;
+  $('checkMsg').innerHTML = `<span class="spin"></span>检测中${vision ? '（含 LLM 逐秒读帧，较慢）' : ''}…`;
+  badge($('checkBadge'), 'idle', '检测中');
+  $('checkOut').innerHTML = '';
+  try {
+    const r = await get(`/api/check?video=${encodeURIComponent(file)}&vision=${vision ? 1 : 0}`);
+    if (r.error) {
+      $('checkMsg').textContent = r.error;
+      if (r.stdout) $('checkOut').innerHTML = `<div class="mono">${esc(r.stdout)}</div>`;
+      badge($('checkBadge'), 'err', '失败');
+    } else {
+      renderCheck(r.report, r.ok);
+    }
+  } catch (e) {
+    badge($('checkBadge'), 'err', '失败');
+    $('checkMsg').textContent = e.message;
+  }
+  $('checkGo').disabled = false;
+};
+
+function renderCheck(report, ok) {
+  const findings = report.findings ?? report.issues ?? [];
+  badge($('checkBadge'), ok && !findings.some((f) => (f.level ?? f.severity) === 'bad') ? 'ok' : 'warn',
+    findings.length ? `${findings.length} 项发现` : '通过');
+  $('checkMsg').textContent = '';
+  const out = $('checkOut');
+  if (!findings.length) {
+    out.innerHTML = '<div class="finding good">✓ 没有不过线的地方</div>';
+  } else {
+    out.innerHTML = findings.map((f) => {
+      const lvl = (f.level ?? f.severity ?? 'warn') === 'bad' ? 'bad' : 'warn';
+      return `<div class="finding ${lvl}">${lvl === 'bad' ? '✗' : '!'} ${esc(f.message ?? f.text ?? JSON.stringify(f))}</div>`;
+    }).join('');
+  }
+  /* findings on the timeline */
+  if (report.steps || findings.length) {
+    $('checkCanvas').classList.remove('hidden');
+    $('checkLegend').classList.remove('hidden');
+    requestAnimationFrame(() => {
+      const cv = $('checkCanvas');
+      const [ctx, w, h] = setupCanvas(cv);
+      const tEnd = report.duration ?? Math.max(10, ...findings.map((f) => f.to ?? f.at ?? 0)) * 1.1;
+      const x = (t) => (t / tEnd) * (w - 20) + 10;
+      ctx.strokeStyle = '#3a3a42';
+      ctx.beginPath(); ctx.moveTo(10, h / 2); ctx.lineTo(w - 10, h / 2); ctx.stroke();
+      for (let t = 0; t <= tEnd; t += Math.max(1, Math.round(tEnd / 12))) {
+        ctx.fillStyle = '#555';
+        ctx.fillRect(x(t), h / 2 - 3, 1, 6);
+        ctx.font = '9px sans-serif';
+        ctx.fillText(t + 's', x(t) - 6, h - 4);
+      }
+      for (const f of findings) {
+        const lvl = (f.level ?? f.severity ?? 'warn') === 'bad' ? '#e06c6c' : '#e0b35c';
+        ctx.fillStyle = lvl + 'cc';
+        const a = f.at ?? f.from ?? 0, b = f.to ?? f.end ?? a + 0.3;
+        ctx.fillRect(x(a), h / 2 - 16, Math.max(3, x(b) - x(a)), 32);
+      }
+    });
+  }
+  if (report.steps) {
+    out.innerHTML += `<div class="mono" style="margin-top:8px">${esc(JSON.stringify(report.steps, null, 1)).slice(0, 3000)}</div>`;
+  }
+}
+
+/* ---------- boot ---------- */
+loadOverview().then(loadDuck).catch((e) => {
+  document.body.insertAdjacentHTML('beforeend', `<div class="finding bad">加载失败: ${esc(e.message)}</div>`);
+});
+</script>
+</body>
+</html>

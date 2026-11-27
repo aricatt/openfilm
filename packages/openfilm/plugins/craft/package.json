@@ -10,5 +10,8 @@
     "still": "bin/still.mjs",
     "health": "bin/health.mjs",
     "llm-config": "bin/llm-config.mjs"
+  },
+  "scripts": {
+    "start": "node workbench/server.mjs"
   }
 }
