@@ -12,13 +12,23 @@ import { soundStretches } from './check-uncovered.mjs';
 import { evenCaptionMarks, writeInlineWords } from './caption-words.mjs';
 
 /**
- * The text broken into speakable lines: at the sentence punctuation, longest first kept whole.
+ * The text broken into speakable lines: at the sentence punctuation; a sentence longer than a
+ * line reads badly as one caption, so it breaks at its commas, pieces joined forward while they fit.
  * @param {string} text @returns {string[]}
  */
-export function linesOf(text) {
-  return text.split(/(?<=[。！？!?；;\n])/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+export function linesOf(text, { lineChars = 20 } = {}) {
+  const sentences = text.split(/(?<=[。！？!?；;\n])/).map((s) => s.trim()).filter(Boolean);
+  const out = [];
+  for (const s of sentences) {
+    if ([...s].length <= lineChars) { out.push(s); continue; }
+    let line = '';
+    for (const part of s.split(/(?<=[，,、])/)) {
+      if (line && [...(line + part)].length > lineChars) { out.push(line); line = part; }
+      else line += part;
+    }
+    if (line.trim()) out.push(line);
+  }
+  return out.map((s) => s.trim()).filter(Boolean);
 }
 
 /**
