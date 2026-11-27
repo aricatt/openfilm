@@ -311,3 +311,24 @@ Producer 工作台）在引擎之外，与本移植无关。
 测试 52/52。质量检测剩余：密字/字不停——**需要 vision 模型读帧**，
 等 LLM 视觉能力决策后实现（算法本身在 adudir-film-checks 是现成的，
 输入只是一帧图+「哪些字够大能读」的 vision 回答）。
+
+## 七、字幕组移植进展（2026-11-27 第二批）
+
+### 已移植
+- **uncovered-speech**（commit 430866d）：`craft check --lines` 现在同时对成片做静音检测，
+  有声音但无字幕覆盖的段（>=0.3s）报 bad。端到端验证精确：5-7s 无字幕语音段准确报出。
+  **与 ADu 的必要偏离**：上游字幕无逐字时间 marks（ADu 私有扩展），覆盖粒度为整行 cue。
+
+### 架构发现（影响字幕组其余三项）
+上游 captions.mjs 完全没有逐字时间（WebVTT 标准 cue 级），而 ADu 的 caption-marks /
+speech-tail / subtitle-overlap 全部建立在 marks 体系上：
+- caption-marks 修复的是 marks 损坏——上游根本没有 marks，无从修复
+- speech-tail 依赖最后一个词的结束时间——即 marks
+- subtitle-overlap（378 行）消解的是逐字显示的重叠
+
+**决策点**：字幕组剩余三项的前提是把逐字时间引入 craft——这本质上是 ASR 对齐能力
+（whisper 逐字时间戳）+ WebVTT 内联时间戳（标准 karaoke 格式）的采纳决策。
+建议：做 local-asr/云端 ASR 选型时一并决策，而不是单独移植三个依附模块。
+
+### mosaic（马赛克/局部模糊）
+待做，上游确认无。需要渲染层调查（H 组帧网格支撑）。
