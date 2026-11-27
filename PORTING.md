@@ -266,3 +266,48 @@ Producer 工作台）在引擎之外，与本移植无关。
 增强而非语义变化。唯一建议立即对齐的是 duck 的容错（小改动）。新增候选中
 **snap-cuts（静音吸附切割）价值最高**且只有 101 行，建议并入下一轮
 （与死句检测、still-frame 一起）。
+
+---
+
+## 五、2.0 文档研读结论（2026-11-27，ASSISTANT_JOBS.md + ADUDIR_KEYFRAMES.md）
+
+### ASSISTANT_JOBS.md（接活合同 adu-jobs/11）——agent 桥架构验证
+
+这是外部 LLM 助手驱动 ADu 的完整合同，**验证了 craft 的架构选择**：
+- 工作流：`brief → job_start → 执行(ops dispatch) → lint → job_report`——与 craft 的
+  「读工程→ops 编辑→check→undo 日志」同构
+- 关键设计：**opsCatalog**——操作目录下发给 agent，只许用目录里的操作（craft edit 的
+  translateOps 白名单同思路）
+- 版本冲突协议：先读后改、rev 对不上重新读（craft 的 editProjectFilm revision 检查同）
+- 排队协议：同一时间一张单写工程（craft 是单 CLI 无并发问题，未来做服务化时参考）
+- 大改动需用户确认（删超 5 秒、换口播）——craft 暂无此概念，做 agent 服务时参考
+
+**新功能情报**（未移植清单的优先级依据）：
+- 口播粗剪工作流：read(逐字稿+规则) → decision(指文字不指时间) → preview(读 kept 不通就撤回) → apply(按词边界落刀+留气口+收紧停顿)。**这是 ADu 最成熟的 agent 工作流设计**，若做口播产品值得深移
+- 字幕样式系统极丰富：karaoke 逐字高亮、双语（原文+译文排版规则）、按语言设字体、sizePct 按画面短边百分比——上游字幕系统对比后再定
+- `duckBgmForVoice` 操作语义与 craft duck 一致，且明确禁止"按字幕区间画音量曲线压人声"（double-duck 体检项）——**craft check 未来可加 double-duck 检测**
+
+### ADUDIR_KEYFRAMES.md（元素关键帧契约 v1）
+
+完整契约：overrides 扩展 `keys`，通道 x/y/sx/sy/r/opacity，ease 含 cubic-bezier，
+纯采样器 `adudir-keyframes.mjs`，文档/预览/导出三端共享。**移植评估**：
+- 采样器是纯函数，移植容易（估计 200-300 行）
+- 难点在消费端：渲染管线要在逐帧渲染时对元素应用采样值——上游 OpenFilm 已有
+  `split` overrides 动画和 CSS @keyframes，**先验证上游能力缺口再决定**
+- 决策：暂缓，等关键帧动画成为产品需求再启动
+
+## 六、移植完成状态（2026-11-27 终）
+
+| 命令 | 功能 | 状态 |
+|---|---|---|
+| `craft duck` | 音频闪避（含 2.0 容错） | ✅ |
+| `craft edit` | 操作式编辑+undo（媒体感知）+静音吸附 | ✅ |
+| `craft check` | 运动质检+死句+**叠化检测** | ✅ |
+| `craft beats` | 节拍网格 | ✅ |
+| `craft ramp` | 变速斜坡 | ✅ |
+| `craft still` | 抽帧定格 | ✅ |
+| `craft health` | 工程体检（无浏览器） | ✅ |
+
+测试 52/52。质量检测剩余：密字/字不停——**需要 vision 模型读帧**，
+等 LLM 视觉能力决策后实现（算法本身在 adudir-film-checks 是现成的，
+输入只是一帧图+「哪些字够大能读」的 vision 回答）。
