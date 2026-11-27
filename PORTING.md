@@ -346,10 +346,19 @@ speech-tail / subtitle-overlap 全部建立在 marks 体系上：
 1. **ASR 逐字对齐**：whisper.cpp 本地二进制（对齐 ADu 的 local-asr）或云端。产出 marks。
    `craft captions align <audio> <vtt>`：音频+已有字幕文本 → 写入内联时间戳。选型待定：
    whisper.cpp 无依赖但需分发二进制；faster-whisper 需 python 环境。
-2. **写入路径接入**：edit/captions 写 VTT 时统一过 repairCaptionMarks（ADu 教训：一处坏时间全文件拒编）。
-3. **speech-tail**：有了 marks 即可移植（剪口点 = max(末词+0.14s, 实际静音+0.06s)）。
-4. **subtitle-overlap**：378 行最大件，逐字显示重叠消解。
-5. **逐字高亮渲染**：上游 timeline/导出是否消费内联戳需验证——不消费则需 core patch 评估。
+2. **写入路径接入**：edit/captions 写 VTT 时统一过 repairCaptionMarks（ADu 教训：一处坏时间全文件拒编）。——待做，小项
+3. ~~speech-tail~~ ✅ 已移植（55778e7）：模块+5测试。集成点：口播剪辑工作流落地时接入剪口决策。
+4. ~~subtitle-overlap~~ ✅ 重架构落地（71b6cbf）：真相是字幕撞版检测（画面文字压字幕），ADu 依赖
+   fork 的浏览器合成管线不可移植——改用 craft check --vision 已有文字块坐标做几何相交，零额外成本。
+5. ~~逐字高亮渲染~~ ✅ 验证完毕：**上游全链路已支持**（cueNodes 解析→data-t span→逐帧 past/future 类
+   →::cue(:past) 样式），零补丁。craft captions 产出自带 KARAOKE_STYLE（3639bb9）。
+
+### 字幕组终态（2026-11-27）：5/6 完成，仅剩写入路径小项。体系全景：
+- caption-words.mjs：内联戳读写+修复三件套
+- caption-align.mjs：对齐+VTT 生成+卡拉OK样式
+- asr.mjs + bin/captions.mjs：transcribe/align 双模式（MIMO mimo-v2.5-asr 实测精准）
+- speech-tail.mjs：语音尾巴检测（待集成口播剪辑流）
+- check-collision.mjs：撞版检测（vision 几何版）
 
 ### ASR 接入情报（MIMO mimo-v2.5-asr，文档已读）
 - **不是** /audio/transcriptions 端点——走 chat/completions + content type `input_audio`（base64 data URL，≤10MB，wav/mp3）
