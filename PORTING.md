@@ -220,3 +220,49 @@ dropbox/edit/frameio/notion/screening/vimeo）不重名。
 
 每步：先深读 ADu 参考实现 + 上游对应机制 → 写移植设计（命令面/数据结构/集成点）
 → 实现 + 测试 → commit。
+
+
+---
+
+## 四、ADu 2.0 对齐分析（2026-11-27，hot-update 2.0.2）
+
+**更新机制**：ADu 采用热更新——`Program Files` 保持 1.5.3 外壳，运行时加载
+`%LOCALAPPDATA%\ADuDir\hot-update\` 覆盖层（当前 2.0.2，minNativeVersion 1.5.3）。
+**以后做版本对比，对象是这个覆盖层，不是 Program Files。**对比脚本：
+`node D:\__MotionGitAnl\cmp-hot20.js <hot-update/motion-studio> <adudir-reconstructed/motion-studio>`。
+
+**diff 规模**：374 个文件中 115 改、35 新增、1 删。绝大多数是用户反馈驱动的
+健壮性修复（B2611xx 工单），不是新架构。产品层大变化（移动端、模板中心、
+Producer 工作台）在引擎之外，与本移植无关。
+
+### 对已移植功能的影响
+
+| craft 功能 | 2.0 对应模块变化 | 对齐行动 |
+|---|---|---|
+| duck | `adudir-duck-spec` +14 行：新增 `readDuck`——**JSON 读不出的闪避声明不再让整部影片拒绝渲染**，警告一次按无闪避处理 | **待对齐**（小）：craft duck-hook 同样容错 |
+| edit | `adudir-edit` +16 行：undo 变为**媒体感知**——被替换的媒体文件从工程版本记录恢复（adudir-undo-media）；我们的 undo 只快照 film.html | 列为增强项，中优先级 |
+| check | `adudir-film-checks` **未变**；look-checks +1 行；preview-check +22 行 | 无需行动 |
+| beats | **未变** | 无 |
+| ramp | `adudir-speed-ramp` **0 diff**；movie-clock 58→104 行（fork 内部时钟，与我们无关） | 无 |
+| still-frame（未移植） | 39→145 行大扩展：末尾帧回退抽取 + 导出用 exactStill | **移植时用 2.0 版作参考** |
+
+### 2.0 新增模块的移植价值评估
+
+| 模块 | 行数 | 是什么 | 评估 |
+|---|---|---|---|
+| `adudir-mcp/snap-cuts` | 101 | **切分/修剪语音 clip 时切口自动吸附到最近静音**（防卡字/吃尾音），无静音则一行说明 | **高价值**，直接增强 craft edit，建议下一批移植 |
+| `adudir-film-health` + `adudir-film-literals` | 55+71 | 不开浏览器检查工程健康：composition 读不出、页面缺失、页面读了未声明的参数（acorn 静态分析） | 中价值，QA 类，小型 |
+| `adudir-caption-marks` | 82 | 字幕逐字时间损坏时**修复而非拒绝**（丢出位时间、不足两处重排） | 属字幕组（F），随字幕组评估 |
+| `adudir-roughcut-bake` + `mcp/roughcut-inputs` | 210+ | 口播粗剪**烘焙**：时间线上的粗剪结果固化成新文件，模板重做时不会把重录/停顿读回来 | 口播流程相关，看产品方向 |
+| `adudir-local-asr` | — | 本地 whisper.cpp 作为云端 ASR 的备选（credits 不足/离线时） | 依赖 ASR 选型决策，缓议 |
+| `adudir-nle-effects` | 30 | 导出剪映/CapCut/FCP/Premiere 时 clip 特效与转场的映射 | 导出互操作，产品层，缓议 |
+| `audio-tempo` | 9 | atempo 链工具（0.5–2 每级） | 琐碎，需要时随手写 |
+| `adudir-film-closure` | 444 | 工程依赖闭包（打包/版本快照用） | 产品层，缓议 |
+| `ASSISTANT_JOBS.md` / `ADUDIR_KEYFRAMES.md` | — | 2.0 新文档 | 值得读：理解他们 agent 架构与关键帧契约 |
+
+### 结论
+
+2.0 对已移植功能**冲击很小**：beats/ramp/film-checks 核心零变化，duck/edit 是健壮性
+增强而非语义变化。唯一建议立即对齐的是 duck 的容错（小改动）。新增候选中
+**snap-cuts（静音吸附切割）价值最高**且只有 101 行，建议并入下一轮
+（与死句检测、still-frame 一起）。
