@@ -11,7 +11,8 @@
     "health": "bin/health.mjs",
     "llm-config": "bin/llm-config.mjs",
     "captions": "bin/captions.mjs",
-    "mosaic": "bin/mosaic.mjs"
+    "mosaic": "bin/mosaic.mjs",
+    "audit": "bin/audit.mjs"
   },
   "scripts": {
     "start": "node workbench/server.mjs"
