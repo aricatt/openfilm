@@ -7,6 +7,7 @@
     "check": "bin/check.mjs",
     "beats": "bin/beats.mjs",
     "ramp": "bin/ramp.mjs",
-    "still": "bin/still.mjs"
+    "still": "bin/still.mjs",
+    "health": "bin/health.mjs"
   }
 }
